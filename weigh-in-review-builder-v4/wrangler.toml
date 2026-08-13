@@ -1,4 +1,4 @@
-name = "weigh-in-review-builder"
+name = 'weigh-in-edit-sheet-builder'
 main = "src/index.js"
 compatibility_date = "2026-08-13"
 
