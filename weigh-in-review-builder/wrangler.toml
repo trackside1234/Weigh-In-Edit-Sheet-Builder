@@ -1,0 +1,8 @@
+name = "weigh-in-review-builder"
+main = "src/index.js"
+compatibility_date = "2026-08-13"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = [ "/api/*" ]
