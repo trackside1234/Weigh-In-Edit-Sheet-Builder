@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Weigh In Review Builder</title>
+<style>
+:root{--bg:#0e1116;--panel:#171c24;--panel2:#202733;--line:#313b49;--text:#f2f5f8;--muted:#9ca9b8;--accent:#e9f25b;--good:#53d18b;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Arial,Helvetica,sans-serif}
+header{padding:18px 22px;border-bottom:1px solid var(--line);background:#11161d;position:sticky;top:0;z-index:20}
+h1{font-size:20px;margin:0}.sub{color:var(--muted);margin-top:3px}
+main{display:grid;grid-template-columns:340px minmax(0,1fr);min-height:calc(100vh - 70px)}
+aside{padding:18px;border-right:1px solid var(--line);background:#12171e}
+section{padding:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+label{display:block;color:var(--muted);font-size:12px;margin:0 0 5px}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;background:#0d1218;border:1px solid var(--line);color:var(--text);border-radius:7px;padding:9px}
+textarea{min-height:75px;resize:vertical}
+button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:7px;padding:9px 11px;cursor:pointer}
+button:hover{filter:brightness(1.1)}
+button.primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:700}
+button.small{padding:6px 8px;font-size:12px}
+.row{display:flex;gap:8px;align-items:end}.row>*{flex:1}
+.status{font-size:12px;color:var(--muted);padding:8px 0}.status.good{color:var(--good)}.status.bad{color:var(--bad)}
+.meeting{padding:10px;border:1px solid var(--line);border-radius:7px;margin:7px 0;cursor:pointer}
+.meeting.selected{border-color:var(--accent);background:#252b24}
+.race-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:15px}
+.race-tab.active{border-color:var(--accent);color:var(--accent)}
+.race-tab.committed{box-shadow:inset 0 -3px 0 var(--good)}
+.race-head{display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:12px}
+.race-title{font-size:18px;font-weight:700}.meta{color:var(--muted)}
+.runners{display:grid;gap:7px}
+.runner{display:grid;grid-template-columns:34px 56px 1fr 90px;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:#121820}
+.runner.selected{border-color:var(--accent);background:#20251f}
+.runner img{width:50px;height:50px;object-fit:contain;background:#fff;border-radius:6px}
+.runner .horse{font-weight:700}.runner .details{color:var(--muted);font-size:12px}.pos{font-weight:700;text-align:center}
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}
+.preview{background:#fff;color:#111;border:1px solid var(--line);padding:18px;border-radius:8px;line-height:1.5}.edit-block{padding:0 0 20px;margin:0 0 20px;border-bottom:1px solid #ddd}.edit-block:last-child{border-bottom:0}.edit-title{font-weight:700;margin-bottom:10px}.edit-label{font-weight:700;margin-top:8px}.arrow-list{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0}.arrow-item{display:flex;align-items:center;gap:7px;border:1px solid #ddd;border-radius:6px;padding:5px 7px;background:#fafafa}.arrow-item img{width:16px;height:16px;object-fit:contain;vertical-align:middle}.arrow-text{font-weight:700}.muted-dark{color:#555;font-size:12px}
+.editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note{font-size:12px;color:var(--muted)}
+.sheet-count{color:var(--good);font-size:12px;margin-left:8px}
+@media(max-width:850px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}.editor-grid{grid-template-columns:1fr}.runner{grid-template-columns:30px 50px 1fr}.runner .pos{grid-column:3}.controls{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>WEIGH IN REVIEW BUILDER</h1>
+  <div class="sub">TAB API → race selection → editor worksheet</div>
+</header>
+<main>
+<aside>
+  <div class="card">
+    <label>Race date</label>
+    <input id="date" type="date" value="2026-08-12">
+    <button class="primary" id="findBtn" style="width:100%;margin-top:9px">Find NZ Thoroughbred Meetings</button>
+    <div id="status" class="status">Ready.</div>
+  </div>
+
+  <div class="card">
+    <strong>Meetings</strong>
+    <div id="meetings" class="note" style="margin-top:8px">Fetch a date first.</div>
+  </div>
+
+  <div class="card">
+    <label>Meeting media code</label>
+    <input id="meetingCode" value="ROTU" maxlength="8" list="clubCodes" autocomplete="off">
+    <datalist id="clubCodes"></datalist>
+    <div class="note" style="margin-top:6px">Auto-filled where the venue is unambiguous. You can choose any club code from your full production list.</div>
+  </div>
+
+  <div class="card">
+    <label>Weigh In export date</label>
+    <input id="exportDate" type="date">
+    <div class="note" style="margin-top:6px">Used in EXPORT filenames.</div>
+  </div>
+</aside>
+
+<section>
+  <div id="empty" class="card">
+    Choose a date and meeting. The app will then retrieve every race and official result through the Cloudflare proxy.
+  </div>
+  <div id="work" hidden>
+    <div class="race-tabs" id="tabs"></div>
+    <div id="racePanel"></div>
+    <div class="card">
+      <strong>Edit Sheet Preview</strong><span id="sheetCount" class="sheet-count"></span>
+      <div class="preview" id="preview" style="margin-top:10px"></div>
+      <div class="actions">
+        <button id="copyBtn">Copy Rich Edit Sheet</button>
+        <button id="downloadBtn">Download Word-compatible .doc</button>
+        <button id="saveBtn">Save project in browser</button>
+        <button id="loadBtn">Load saved project</button>
+        <button id="clearSheetBtn">Clear Edit Sheet</button>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = {
+  meeting:null,
+  races:[],
+  current:0,
+  selections:{},
+  keyRunner:{},
+  notes:{},
+  raceCode:{},
+  keyType:{},
+  exportName:{},
+  committed:{},
+  sheetRaces:{}
+};
+
+const ordinal = n => {
+  if (n == null) return "";
+  const v=n%100;
+  return n + (v>=11&&v<=13 ? "TH" : ({1:"ST",2:"ND",3:"RD"}[n%10]||"TH"));
+};
+
+const ddmmyy = iso => {
+  const [y,m,d]=iso.split("-");
+  return `${d}${m}${y.slice(2)}`;
+};
+const prettyDate = iso => new Date(iso+"T12:00:00").toLocaleDateString("en-NZ",{month:"long",day:"numeric"}).toUpperCase();
+const clean = s => (s||"").trim();
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+const CLUB_CODES = [{"code": "AKAT", "club": "Akaroa Trotting Club"}, {"code": "AMBT", "club": "Amberley Trotting Club"}, {"code": "ASHB", "club": "Ashburton Racing Club"}, {"code": "ASHG", "club": "Ashburton Greyhound Racing Club"}, {"code": "ASHT", "club": "Ashburton Trotting Club"}, {"code": "AUCK", "club": "Auckland Racing Club"}, {"code": "AUKG", "club": "Auckland Greyhound Racing Club"}, {"code": "AUKT", "club": "Auckland Trotting Club"}, {"code": "AVON", "club": "Avondale Jockey Club"}, {"code": "BANK", "club": "Banks Peninsula Racing Club"}, {"code": "BANT", "club": "Banks Peninsula Trotting Club"}, {"code": "BEAU", "club": "Beaumont Racing Club"}, {"code": "BOPT", "club": "Bay of Plenty Harness Racing Club"}, {"code": "CAMB", "club": "Cambridge Jockey Club"}, {"code": "CAMT", "club": "Cambridge Harness Racing Club"}, {"code": "CBRY", "club": "Canterbury Racing (Rangiora Gallops)"}, {"code": "CENR", "club": "Central Otago Racing Club"}, {"code": "CENT", "club": "Central Otago Trotting Club"}, {"code": "CHCG", "club": "Christchurch Greyhound Racing Club"}, {"code": "CHVT", "club": "Cheviot Harness Racing Club"}, {"code": "COUN", "club": "Counties Racing Club"}, {"code": "DARV", "club": "Dargaville Racing Club"}, {"code": "EGMO", "club": "Egmont Racing Club"}, {"code": "FBYT", "club": "Forbury Park Trotting Club"}, {"code": "FLDG", "club": "Feilding Jockey Club"}, {"code": "FOXN", "club": "Foxton Racing Club"}, {"code": "FRNT", "club": "Franklin Trotting Club"}, {"code": "GERT", "club": "Geraldine Trotting Club"}, {"code": "GORE", "club": "Gore Racing Club"}, {"code": "GORT", "club": "Gore Harness Racing Club"}, {"code": "GREY", "club": "Greymouth Jockey Club"}, {"code": "GRYT", "club": "Greymouth Trotting Club"}, {"code": "HAWT", "club": "Hawera Harness Racing Club"}, {"code": "HBAY", "club": "Hawkes Bay Racing Inc"}, {"code": "HORT", "club": "Hororata Trotting Club"}, {"code": "INVT", "club": "Invercargill Trotting Club"}, {"code": "KAIT", "club": "Kaikoura Trotting Club"}, {"code": "KAPT", "club": "Kapiti Coast Harness Racing Club"}, {"code": "KMUT", "club": "Kumeu Trotting Club"}, {"code": "KUMA", "club": "Kumara Racing Club"}, {"code": "KURO", "club": "Kurow Jockey Club"}, {"code": "KURT", "club": "Kurow Trotting Club"}, {"code": "LEVN", "club": "Levin Racing Club"}, {"code": "MANG", "club": "Manawatu Greyhound Racing Club"}, {"code": "MANT", "club": "Manawatu Harness Racing Club"}, {"code": "MANU", "club": "Manawatu Racing Club"}, {"code": "MARB", "club": "Marlborough Racing Club"}, {"code": "MATA", "club": "Matamata Racing Club"}, {"code": "METT", "club": "New Zealand Metropolitan Trotting Club"}, {"code": "MEVT", "club": "Methven Trotting Club"}, {"code": "MNKT", "club": "Manukau Trotting Club"}, {"code": "MORT", "club": "Morrinsville Trotting Club"}, {"code": "MRBT", "club": "Marlborough Harness Racing Club"}, {"code": "MRTN", "club": "Marton Jockey Club"}, {"code": "MSTN", "club": "Masterton Racing Club"}, {"code": "NELT", "club": "Nelson Harness Racing Club"}, {"code": "NSLT", "club": "Northern Southland Trotting Club"}, {"code": "NTHT", "club": "Northland Harness Racing Club"}, {"code": "OMAT", "club": "Oamaru Harness Racing Club"}, {"code": "OMAU", "club": "Oamaru Jockey Club"}, {"code": "OPUN", "club": "Opunake Racing Club"}, {"code": "OTGG", "club": "Otago Greyhound Racing Club"}, {"code": "OTGO", "club": "Otago Racing Club"}, {"code": "OTKM", "club": "Otaki Maori Racing Club"}, {"code": "PAKU", "club": "Pakuranga Hunt Club"}, {"code": "PLMG", "club": "Palmy Greyhound Racing"}, {"code": "POVB", "club": "Poverty Bay Turf Club"}, {"code": "PROA", "club": "Paeroa Racing Club"}, {"code": "RANT", "club": "Rangiora Harness Racing Club"}, {"code": "RBPH", "club": "Rotorua/Bay of Plenty Hunt Club"}, {"code": "REEF", "club": "Reefton Jockey Club"}, {"code": "REFT", "club": "Reefton Trotting Club"}, {"code": "RIVR", "club": "Riverton Racing Club"}, {"code": "RIVT", "club": "Riverton Trotting Club"}, {"code": "ROTU", "club": "Rotorua Racing Club"}, {"code": "ROXT", "club": "Roxburgh Trotting Club"}, {"code": "RTKI", "club": "Rangitikei Racing Club"}, {"code": "SLDG", "club": "Southland Greyhound Racing Club"}, {"code": "STHL", "club": "Southland Racing Club"}, {"code": "STRA", "club": "Stratford Racing Club"}, {"code": "STRT", "club": "Stratford Trotting Club"}, {"code": "SWAK", "club": "South Waikato Racing Club"}, {"code": "TAKG", "club": "Taranaki Greyhound Racing Club"}, {"code": "TAKI", "club": "Taranaki Racing Club"}, {"code": "TAKT", "club": "Taranaki Trotting Club"}, {"code": "TAPN", "club": "Tapanui Racing Club"}, {"code": "TARO", "club": "Te Aroha Racing"}, {"code": "TAUM", "club": "Taumarunui Racing Club"}, {"code": "TAUP", "club": "Taupo Racing"}, {"code": "TAUR", "club": "Tauranga Racing"}, {"code": "THAM", "club": "Thames Jockey Club"}, {"code": "TIMT", "club": "Timaru Harness Racing Club"}, {"code": "TIMU", "club": "South Canterbury Racing Club"}, {"code": "TMST", "club": "Thames Harness Racing Club"}, {"code": "TOKG", "club": "Tokoroa Greyhound Racing Club"}, {"code": "TPKT", "club": "Tuapeka Trotting Club"}, {"code": "WAIK", "club": "Waikato Racing Club"}, {"code": "WAIM", "club": "Waimate Racing Club"}, {"code": "WAIT", "club": "Waimate Trotting Club"}, {"code": "WAKG", "club": "Waikato Greyhound Racing Club"}, {"code": "WANG", "club": "Wanganui Jockey Club"}, {"code": "WAVY", "club": "Waverley Racing Club"}, {"code": "WELG", "club": "Wellington Greyhound Racing Club"}, {"code": "WELL", "club": "Wellington Racing Club"}, {"code": "WHAK", "club": "Whakatane Racing Club"}, {"code": "WHAN", "club": "Whangarei Racing Club"}, {"code": "WINT", "club": "Winton Harness Racing Club"}, {"code": "WTON", "club": "Winton Jockey Club"}, {"code": "WNGG", "club": "Wanganui Greyhound Racing Club"}, {"code": "WNGT", "club": "Wanganui Trotting Club"}, {"code": "WOOD", "club": "Woodville-Pahiatua Racing Club"}, {"code": "WSLD", "club": "Westland Racing Club"}, {"code": "WSPT", "club": "Westport Trotting Club"}, {"code": "WYND", "club": "Wyndham Racing Club"}, {"code": "WYNT", "club": "Wyndham Harness Racing Club"}, {"code": "YKOU", "club": "Waikouaiti Racing Club"}, {"code": "YKUT", "club": "Waikouaiti Trotting Club"}, {"code": "YPAR", "club": "Waipa Racing Club"}, {"code": "YPUK", "club": "Waipukurau Jockey Club"}, {"code": "YRAG", "club": "Wairarapa Greyhound Racing Club"}, {"code": "YRAP", "club": "Wairarapa Racing Club"}, {"code": "YRIO", "club": "Wairio Jockey Club"}, {"code": "YROA", "club": "Wairoa Racing Club"}, {"code": "YROT", "club": "Wairio Trotting Club"}, {"code": "YRPT", "club": "Wairarapa Harness Racing Club"}];
+
+const VENUE_CODE_ALIASES = {
+  "Ellerslie":"AUCK", "Te Rapa":"WAIK", "Matamata":"MATA", "Tauranga":"TAUR",
+  "Rotorua":"ROTU", "Cambridge":"CAMB", "New Plymouth":"TAKI", "Hastings":"HBAY",
+  "Trentham":"WELL", "Wanganui":"WANG", "Waverley":"WAVY", "Woodville":"WOOD",
+  "Otaki":"OTKM", "Taupo":"TAUP", "Riverton":"RIVR", "Gore":"GORE",
+  "Ashburton":"ASHB", "Oamaru":"OMAU", "Kumara":"KUMA", "Reefton":"REEF"
+};
+
+function populateClubCodes(){
+  const dl=$("#clubCodes");
+  dl.innerHTML=CLUB_CODES.map(x=>`<option value="${x.code}">${x.club}</option>`).join("");
+}
+
+function setStatus(msg,type=""){
+  const e=$("#status"); e.textContent=msg; e.className="status "+type;
+}
+
+async function getJSON(url){
+  const r=await fetch(url);
+  const text=await r.text();
+  let data; try{data=JSON.parse(text)}catch{throw new Error(`Non-JSON response (${r.status})`)}
+  if(!r.ok) throw new Error(data.error||`Request failed ${r.status}`);
+  return data;
+}
+
+populateClubCodes();
+
+$("#findBtn").onclick = async () => {
+  const date=$("#date").value;
+  setStatus("Loading meetings…");
+  $("#meetings").innerHTML="";
+  try{
+    const payload=await getJSON(`/api/meetings?date=${encodeURIComponent(date)}`);
+    const meetings=payload?.data?.meetings||[];
+    if(!meetings.length){setStatus("No NZ thoroughbred meetings found.","bad");$("#meetings").textContent="No meetings.";return}
+    setStatus(`Found ${meetings.length} meeting${meetings.length===1?"":"s"}.`,"good");
+    meetings.forEach(m=>{
+      const div=document.createElement("div");
+      div.className="meeting";
+      div.innerHTML=`<strong>${esc(m.name)}</strong><div class="note">${m.races?.length||0} races · ${esc(m.track_condition||"")}</div>`;
+      div.onclick=()=>loadMeeting(m,div);
+      $("#meetings").appendChild(div);
+    });
+  }catch(err){setStatus("Meeting fetch failed: "+err.message,"bad")}
+};
+
+async function loadMeeting(m,el){
+  document.querySelectorAll(".meeting").forEach(x=>x.classList.remove("selected")); el.classList.add("selected");
+  state.meeting=m; state.races=[]; state.current=0;
+  setStatus(`Loading ${m.name} race details…`);
+  try{
+    const details=await Promise.all((m.races||[]).map(r=>getJSON(`/api/event/${encodeURIComponent(r.id)}`)));
+    state.races=details.map(p=>normaliseRace(p.data)).sort((a,b)=>a.number-b.number);
+    inferCode(m.name);
+    initialiseRaceState();
+    render();
+    setStatus(`Loaded ${state.races.length} races from ${m.name}.`,"good");
+  }catch(err){setStatus("Race fetch failed: "+err.message,"bad")}
+}
+
+function normaliseRace(data){
+  const race=data.race||{};
+  const results=data.results||[];
+  const resultMap=new Map(results.map(x=>[x.runner_number,x]));
+  const runners=(data.runners||[]).filter(r=>!r.is_scratched).map(r=>({
+    ...r,
+    result:resultMap.get(r.runner_number)||null
+  })).sort((a,b)=>(a.result?.position??999)-(b.result?.position??999)||a.runner_number-b.runner_number);
+
+  return {
+    id:race.event_id,
+    number:race.race_number,
+    name:race.description,
+    className:race.class||"",
+    distance:race.distance,
+    track:race.meeting_name,
+    condition:race.track_condition,
+    date:race.race_date_nz,
+    runners
+  };
+}
+
+function inferCode(name){
+  // Prefer exact venue aliases where the hosting club is normally unambiguous.
+  // The full datalist remains available for shared-track/special-club meetings.
+  $("#meetingCode").value=VENUE_CODE_ALIASES[name]||"";
+}
+
+
+function initialiseRaceState(){
+  for(const r of state.races){
+    const id=r.id;
+    if(!state.selections[id]) state.selections[id]=new Set(r.runners.filter(x=>x.result?.position<=3).map(x=>x.runner_number));
+    if(!state.keyRunner[id]) state.keyRunner[id]=r.runners.find(x=>x.result?.position===1)?.runner_number||r.runners[0]?.runner_number;
+    if(!state.notes[id]) state.notes[id]="";
+    if(!state.keyType[id]) state.keyType[id]=r.name||r.className;
+    if(!r.meetingCode) r.meetingCode=$("#meetingCode").value.trim();
+    if(!state.exportName[id]) state.exportName[id]=`WI-${(r.meetingCode||"RACE").trim()} ${r.distance}M-${ddmmyy($("#exportDate").value||new Date().toISOString().slice(0,10))}`;
+    if(state.committed[id] == null) state.committed[id]=false;
+  }
+}
+
+function render(){
+  $("#empty").hidden=true; $("#work").hidden=false;
+  $("#tabs").innerHTML=state.races.map((r,i)=>`<button class="race-tab ${i===state.current?"active":""} ${state.sheetRaces[r.id]?"committed":""}" data-i="${i}">R${r.number}${state.sheetRaces[r.id]?" ✓":""}</button>`).join("");
+  document.querySelectorAll(".race-tab").forEach(b=>b.onclick=()=>{state.current=+b.dataset.i;render()});
+  renderRace();
+  renderPreview();
+}
+
+function renderRace(){
+  const r=state.races[state.current]; if(!r)return;
+  const selected=state.selections[r.id]||new Set();
+  const mediaCode=`${(r.meetingCode||$("#meetingCode").value||"").trim()}-R${String(r.number).padStart(2,"0")}-${ddmmyy(r.date)}`;
+  const keyRunner=state.keyRunner[r.id];
+
+  $("#racePanel").innerHTML=`
+    <div class="card">
+      <div class="race-head">
+        <div><div class="race-title">R${r.number} — ${esc(r.name)}</div>
+        <div class="meta">${esc(r.className)} · ${esc(r.track)} (${esc(r.condition)}) · ${r.distance}m</div></div>
+        <div class="meta">${esc(r.date)}</div>
+      </div>
+      <div class="actions">
+        <button class="small" id="top1">Winner</button>
+        <button class="small" id="top3">Top 3</button>
+        <button class="small" id="top5">Top 5</button>
+        <button class="small" id="clearSel">Clear</button>
+        <button class="small" id="commitRace">${state.sheetRaces[r.id]?"Remove from Edit Sheet":"Add to Edit Sheet"}</button>
+      </div>
+      <div class="runners" style="margin-top:10px">
+      ${r.runners.map(x=>`
+        <div class="runner ${selected.has(x.runner_number)?"selected":""}" data-runner="${x.runner_number}">
+          <input type="checkbox" ${selected.has(x.runner_number)?"checked":""} aria-label="Include ${esc(x.name)}">
+          <img src="${esc(x.silk_url_128x128||x.silk_url_64x64||"")}" alt="${esc(x.silk_colours||"Silk")}">
+          <div>
+            <div class="horse">#${x.runner_number} ${esc(x.name)}</div>
+            <div class="details">J: ${esc(x.jockey||"")} · T: ${esc(x.trainer_name||"")}</div>
+          </div>
+          <div class="pos">${x.result ? ordinal(x.result.position) : ""}</div>
+        </div>`).join("")}
+      </div>
+
+      <div class="editor-grid">
+        <div><label>RACE media code</label><input id="raceCode" value="${esc(state.raceCode[r.id]||mediaCode)}"></div>
+        <div><label>KEY runner</label>
+          <select id="keyRunner">${r.runners.map(x=>`<option value="${x.runner_number}" ${x.runner_number===keyRunner?"selected":""}>${esc(x.name)} — ${x.result?ordinal(x.result.position):""}</option>`).join("")}</select>
+        </div>
+        <div><label>KEY race name</label><input id="keyType" value="${esc(state.keyType[r.id]||"")}"></div>
+        <div><label>EXPORT</label><input id="exportName" value="${esc(state.exportName[r.id]||"")}"></div>
+      </div>
+      <div style="margin-top:12px"><label>Editor notes (optional)</label><textarea id="notes">${esc(state.notes[r.id]||"")}</textarea></div>
+    </div>`;
+
+  document.querySelectorAll(".runner").forEach(row=>{
+    const cb=row.querySelector("input");
+    cb.onchange=()=>{
+      const n=+row.dataset.runner;
+      cb.checked ? selected.add(n) : selected.delete(n);
+      row.classList.toggle("selected",cb.checked);
+      syncSheetRace(r);
+      renderPreview();
+    };
+    row.onclick=e=>{ if(e.target!==cb && e.target.tagName!=="SELECT" && e.target.tagName!=="INPUT"){cb.checked=!cb.checked;cb.dispatchEvent(new Event("change"))} };
+  });
+  $("#top1").onclick=()=>setTop(1); $("#top3").onclick=()=>setTop(3); $("#top5").onclick=()=>setTop(5);
+  $("#clearSel").onclick=()=>setTop(0);
+  $("#commitRace").onclick=()=>{
+    if(state.sheetRaces[r.id]){
+      delete state.sheetRaces[r.id];
+      state.committed[r.id]=false;
+    }else{
+      // Store the whole normalized race so it survives switching to another meeting.
+      state.sheetRaces[r.id]=JSON.parse(JSON.stringify(r));
+      state.committed[r.id]=true;
+    }
+    render();
+  };
+  $("#raceCode").oninput=e=>{state.raceCode[r.id]=e.target.value;syncSheetRace(r);renderPreview()};
+  $("#keyRunner").onchange=e=>{state.keyRunner[r.id]=+e.target.value;syncSheetRace(r);renderPreview()};
+  $("#keyType").oninput=e=>{state.keyType[r.id]=e.target.value;syncSheetRace(r);renderPreview()};
+  $("#exportName").oninput=e=>{state.exportName[r.id]=e.target.value;syncSheetRace(r);renderPreview()};
+  $("#notes").oninput=e=>{state.notes[r.id]=e.target.value;syncSheetRace(r);renderPreview()};
+}
+
+function setTop(n){
+  const r=state.races[state.current];
+  state.selections[r.id]=new Set(r.runners.filter(x=>x.result?.position<=n).map(x=>x.runner_number));
+  render();
+}
+
+function syncSheetRace(r){
+  if(state.sheetRaces[r.id]) state.sheetRaces[r.id]=JSON.parse(JSON.stringify(r));
+}
+
+function selectedArrows(r){
+  const sel=state.selections[r.id]||new Set();
+  return r.runners.filter(x=>sel.has(x.runner_number)).sort((a,b)=>(a.result?.position??999)-(b.result?.position??999));
+}
+function buildRaceText(r){
+  const arrows=selectedArrows(r); if(!arrows.length) return "";
+  const key=r.runners.find(x=>x.runner_number===state.keyRunner[r.id])||arrows[0];
+  const mediaCode=state.raceCode[r.id]||`${(r.meetingCode||"").trim()}-R${String(r.number).padStart(2,"0")}-${ddmmyy(r.date)}`;
+  const arrowText=arrows.map(x=>`${x.name.toUpperCase()} – ${x.result?ordinal(x.result.position):""}`).join(", ");
+  const keyLine=`${key.name.toUpperCase()} – ${key.result?ordinal(key.result.position):""}`;
+  const descriptor=`${(state.keyType[r.id]||r.name||r.className).toUpperCase()} | ${r.track.toUpperCase()} (${r.condition.toUpperCase()}) ${r.distance}M, ${prettyDate(r.date)}`;
+  const exp=state.exportName[r.id]||"";
+  const note=clean(state.notes[r.id]) ? `\nNOTES:\n${clean(state.notes[r.id])}` : "";
+  return `REPLAY (LAST 500m WITH REPLAY PACKAGE/WINNING CONNECTIONS COLOUR ON THE TAIL)\nRACE: ${mediaCode}\nARROWS:\n${arrowText}\nKEY:\n${keyLine}\n${descriptor}\nEXPORT: ${exp}${note}`;
+}
+function buildRaceHTML(r){
+  const arrows=selectedArrows(r); if(!arrows.length) return "";
+  const key=r.runners.find(x=>x.runner_number===state.keyRunner[r.id])||arrows[0];
+  const mediaCode=state.raceCode[r.id]||`${(r.meetingCode||"").trim()}-R${String(r.number).padStart(2,"0")}-${ddmmyy(r.date)}`;
+  const descriptor=`${(state.keyType[r.id]||r.name||r.className).toUpperCase()} | ${r.track.toUpperCase()} (${r.condition.toUpperCase()}) ${r.distance}M, ${prettyDate(r.date)}`;
+  const exp=state.exportName[r.id]||""; const note=clean(state.notes[r.id]);
+  const arrowHTML=arrows.map(x=>`<div class="arrow-item">${x.silk_url_128x128||x.silk_url_64x64 ? `<img src="${esc(x.silk_url_128x128||x.silk_url_64x64)}" alt="Silks" width="12" height="12" style="width:12px;height:12px;object-fit:contain;vertical-align:middle">` : ""}<span class="arrow-text">${esc(x.name.toUpperCase())} – ${x.result?ordinal(x.result.position):""}</span></div>`).join("");
+  return `<div class="edit-block"><div class="edit-title">REPLAY (LAST 500m WITH REPLAY PACKAGE/WINNING CONNECTIONS COLOUR ON THE TAIL)</div><div><b>RACE:</b> ${esc(mediaCode)}</div><div class="edit-label">ARROWS:</div><div class="arrow-list">${arrowHTML}</div><div class="edit-label">KEY:</div><div>${esc(key.name.toUpperCase())} – ${key.result?ordinal(key.result.position):""}</div><div>${esc(descriptor)}</div><div><b>EXPORT:</b> ${esc(exp)}</div>${note?`<div class="edit-label">NOTES:</div><div>${esc(note).replace(/\n/g,"<br>")}</div>`:""}</div>`;
+}
+function committedRaces(){
+  return Object.values(state.sheetRaces).sort((a,b)=>
+    (a.date||"").localeCompare(b.date||"") || (a.track||"").localeCompare(b.track||"") || a.number-b.number
+  );
+}
+function renderPreview(){
+  const races=committedRaces();
+  $("#sheetCount").textContent=races.length?`• ${races.length} race${races.length===1?"":"s"} from ${new Set(races.map(r=>r.track)).size} meeting${new Set(races.map(r=>r.track)).size===1?"":"s"}`:"";
+  $("#preview").innerHTML=races.length?races.map(buildRaceHTML).join(""):`<div class="muted-dark">No races added yet. Build a race above, then click <b>Add to Edit Sheet</b>.</div>`;
+}
+
+$("#meetingCode").oninput=()=>{
+  const code=$("#meetingCode").value.trim().toUpperCase();
+  for(const r of state.races){
+    r.meetingCode=code;
+    state.raceCode[r.id]=`${code}-R${String(r.number).padStart(2,"0")}-${ddmmyy(r.date)}`;
+    syncSheetRace(r);
+  }
+  render();
+};
+$("#exportDate").value=new Date().toISOString().slice(0,10);
+
+$("#copyBtn").onclick=async()=>{
+  const races=committedRaces(); if(!races.length)return alert("Add at least one race first.");
+  const rich=`<div style="font-family:Arial,Helvetica,sans-serif">${races.map(buildRaceHTML).join("")}</div>`;
+  const plain=races.map(buildRaceText).join("\n\n\n");
+  try{
+    const item=new ClipboardItem({"text/html":new Blob([rich],{type:"text/html"}),"text/plain":new Blob([plain],{type:"text/plain"})});
+    await navigator.clipboard.write([item]); alert("Rich edit sheet copied. Paste into Word/Docs to retain silks where supported.");
+  }catch(err){ await navigator.clipboard.writeText(plain); alert("Rich copy was blocked, so plain text was copied instead."); }
+};
+
+$("#downloadBtn").onclick=()=>{
+  const races=committedRaces(); if(!races.length)return alert("Add at least one race first.");
+  const body=races.map(buildRaceHTML).join("");
+  const html=`<html><head><meta charset="utf-8"><style>body{font-family:Arial}.edit-block{margin-bottom:24px}.arrow-item{display:inline-flex;align-items:center;gap:6px;margin:4px 8px 4px 0}.arrow-item img{width:16px;height:16px;object-fit:contain;vertical-align:middle}.edit-label,.edit-title{font-weight:bold;margin-top:8px}</style></head><body>${body}</body></html>`;
+  const blob=new Blob([html],{type:"application/msword"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`WEIGH-IN-EDIT-${$("#date").value}.doc`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+
+$("#clearSheetBtn").onclick=()=>{
+  if(!confirm("Clear all races from the edit sheet?")) return;
+  state.sheetRaces={}; state.committed={}; render();
+};
+
+$("#saveBtn").onclick=()=>{
+  const serial={
+    meeting:state.meeting,races:state.races,current:state.current,
+    selections:Object.fromEntries(Object.entries(state.selections).map(([k,v])=>[k,[...v]])),
+    keyRunner:state.keyRunner,notes:state.notes,raceCode:state.raceCode,keyType:state.keyType,exportName:state.exportName,committed:state.committed,sheetRaces:state.sheetRaces,
+    date:$("#date").value,meetingCode:$("#meetingCode").value,exportDate:$("#exportDate").value
+  };
+  localStorage.setItem("weighInReviewProject",JSON.stringify(serial));alert("Saved in this browser.");
+};
+
+$("#loadBtn").onclick=()=>{
+  const raw=localStorage.getItem("weighInReviewProject");if(!raw)return alert("No saved project found.");
+  const s=JSON.parse(raw);Object.assign(state,s);state.sheetRaces=state.sheetRaces||{};state.selections=Object.fromEntries(Object.entries(s.selections||{}).map(([k,v])=>[k,new Set(v)]));
+  $("#date").value=s.date||$("#date").value;$("#meetingCode").value=s.meetingCode||"";$("#exportDate").value=s.exportDate||$("#exportDate").value;render();
+};
+</script>
+</body>
+</html>
